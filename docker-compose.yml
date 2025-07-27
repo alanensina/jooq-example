@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+
+  school-database-postgres:
+    image: postgres:14.2
+    container_name: postgres-database
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: user
+      POSTGRES_DB: school
+    ports:
+      - "5432:5432"
+    networks:
+      - school-postgres-network
+
+networks:
+  school-postgres-network:
