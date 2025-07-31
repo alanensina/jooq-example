@@ -3,9 +3,8 @@ package com.alanensina.school.services;
 import com.alanensina.school.dtos.student.CreateStudentRequestDTO;
 import com.alanensina.school.dtos.student.StudentResponseDTO;
 import com.alanensina.school.dtos.student.UpdateStudentRequestDTO;
-import com.alanensina.school.jooq.generated.tables.Student;
 import com.alanensina.school.jooq.generated.tables.records.StudentRecord;
-import org.jooq.DSLContext;
+import com.alanensina.school.repositories.StudentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -14,67 +13,20 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.List;
 
-import static com.alanensina.school.jooq.generated.Tables.STUDENT;
-import static com.alanensina.school.jooq.generated.tables.Enrollment.ENROLLMENT;
-
 @Service
 public class StudentService {
 
-    private final DSLContext dsl;
+    private final StudentRepository studentRepository;
+
     private static final Logger LOGGER = LoggerFactory.getLogger(StudentService.class);
 
-    public StudentService(DSLContext dsl) {
-        this.dsl = dsl;
-    }
-
-    public List<StudentRecord> findAll() {
-        return dsl.selectFrom(STUDENT).fetch();
-    }
-
-    private void createStudent(String firstName, String lastName, int age, String email, String phone) {
-        var record = dsl.newRecord(STUDENT);
-        record.setFirstname(firstName);
-        record.setLastname(lastName);
-        record.setAge(age);
-        record.setEmail(email);
-        record.setPhone(phone);
-        record.store();
-    }
-
-    private void updateStudent(Long id, String firstName, String lastName, int age, String email, String phone) {
-         dsl.update(STUDENT)
-                .set(STUDENT.FIRSTNAME, firstName)
-                .set(STUDENT.LASTNAME, lastName)
-                .set(STUDENT.AGE, age)
-                .set(STUDENT.EMAIL, email)
-                .set(STUDENT.PHONE, phone)
-                .where(STUDENT.ID.eq(id))
-                .execute();
-    }
-
-    private void deleteStudent(Long id) {
-        dsl.deleteFrom(STUDENT)
-                .where(STUDENT.ID.eq(id))
-                .execute();
-    }
-
-    private List<StudentRecord> listStudentsByCourse(Long courseId) {
-        return dsl.select(Student.STUDENT.fields())
-                .from(Student.STUDENT)
-                .join(ENROLLMENT).on(Student.STUDENT.ID.eq(ENROLLMENT.STUDENT_ID))
-                .where(ENROLLMENT.COURSE_ID.eq(courseId))
-                .fetchInto(StudentRecord.class);
-    }
-
-    public StudentRecord getById(Long id){
-        return dsl.selectFrom(STUDENT)
-                .where(STUDENT.ID.eq(id))
-                .fetchOne();
+    public StudentService(StudentRepository studentRepository) {
+        this.studentRepository = studentRepository;
     }
 
     public ResponseEntity<Void> create(CreateStudentRequestDTO body) {
         try{
-            createStudent(
+            studentRepository.createStudent(
                     body.firstName(),
                     body.lastName(),
                     body.age(),
@@ -90,27 +42,27 @@ public class StudentService {
     }
 
     public ResponseEntity<StudentResponseDTO> getStudentById(Long id) {
-        StudentRecord record;
+        StudentRecord studentRecord;
 
         try{
-            record = getById(id);
+            studentRecord = studentRepository.getById(id);
         } catch (Exception e) {
             LOGGER.error("Error to find the Student. Error: {}", e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
 
-        if(record == null){
+        if(studentRecord == null){
             LOGGER.error("Student not found. Id: {}", id);
             return ResponseEntity.badRequest().build();
         }
 
         var response = new StudentResponseDTO(
-                record.getId(),
-                record.getFirstname(),
-                record.getLastname(),
-                record.getAge(),
-                record.getEmail(),
-                record.getPhone()
+                studentRecord.getId(),
+                studentRecord.getFirstname(),
+                studentRecord.getLastname(),
+                studentRecord.getAge(),
+                studentRecord.getEmail(),
+                studentRecord.getPhone()
         );
 
         return ResponseEntity.ok(response);
@@ -118,7 +70,7 @@ public class StudentService {
 
     public ResponseEntity<List<StudentResponseDTO>> list() {
         try{
-            var studentsRecords = findAll();
+            var studentsRecords = studentRepository.findAll();
 
             if(studentsRecords.isEmpty()) return ResponseEntity.ok(Collections.emptyList());
 
@@ -142,12 +94,12 @@ public class StudentService {
 
     public ResponseEntity<Void> deleteById(Long id) {
         try{
-            if(getById(id) == null){
+            if(studentRepository.getById(id) == null){
                 LOGGER.error("Student not found. Id: {}", id);
                 return ResponseEntity.badRequest().build();
             }
 
-            deleteStudent(id);
+            studentRepository.deleteStudent(id);
 
             return ResponseEntity.ok().build();
         } catch (Exception e) {
@@ -158,14 +110,14 @@ public class StudentService {
 
     public ResponseEntity<StudentResponseDTO> update(UpdateStudentRequestDTO body) {
         try{
-            var oldRecord = getById(body.id());
+            var oldRecord = studentRepository.getById(body.id());
 
             if(oldRecord == null){
                 LOGGER.error("Student not found. Id: {}", body.id());
                 return ResponseEntity.badRequest().build();
             }
 
-            updateStudent(
+            studentRepository.updateStudent(
                     body.id(),
                     body.firstName(),
                     body.lastName(),
@@ -184,7 +136,7 @@ public class StudentService {
     public ResponseEntity<List<StudentResponseDTO>> listStudentsByCourseId(Long id) {
 
         try {
-            var studentsRecords = listStudentsByCourse(id);
+            var studentsRecords = studentRepository.listStudentsByCourse(id);
 
             if (studentsRecords.isEmpty()) return ResponseEntity.ok(Collections.emptyList());
 

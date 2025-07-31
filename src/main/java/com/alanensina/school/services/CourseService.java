@@ -1,9 +1,8 @@
 package com.alanensina.school.services;
 
 import com.alanensina.school.dtos.course.CourseResponseDTO;
-import com.alanensina.school.jooq.generated.Tables;
 import com.alanensina.school.jooq.generated.tables.records.CourseRecord;
-import org.jooq.DSLContext;
+import com.alanensina.school.repositories.CourseRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -12,60 +11,19 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.List;
 
-import static com.alanensina.school.jooq.generated.tables.Course.COURSE;
-
 @Service
 public class CourseService {
 
-    private final DSLContext dsl;
     private static final Logger LOGGER = LoggerFactory.getLogger(CourseService.class);
+    private final CourseRepository courseRepository;
 
-    public CourseService(DSLContext dsl) {
-        this.dsl = dsl;
-    }
-
-    private List<CourseRecord> findAll() {
-        return dsl.selectFrom(COURSE).fetch();
-    }
-
-    public List<CourseRecord> findCoursesByStudent(Long studentId) {
-        return dsl.select(Tables.COURSE.fields())
-                .from(Tables.COURSE)
-                .join(Tables.ENROLLMENT).on(Tables.COURSE.ID.eq(Tables.ENROLLMENT.COURSE_ID))
-                .where(Tables.ENROLLMENT.STUDENT_ID.eq(studentId))
-                .fetchInto(CourseRecord.class);
-    }
-
-    public CourseRecord getById(Long id){
-        return dsl.selectFrom(COURSE)
-                .where(COURSE.ID.eq(id))
-                .fetchOne();
-    }
-
-    private void createCourse(String name, Long teacherId) {
-        var record = dsl.newRecord(COURSE);
-        record.setName(name);
-        record.setTeacherId(teacherId);
-        record.store();
-    }
-
-    private void updateCourse(Long id, String name, Long teacherId) {
-         dsl.update(COURSE)
-                .set(COURSE.NAME, name)
-                .set(COURSE.TEACHER_ID, teacherId)
-                .where(COURSE.ID.eq(id))
-                .execute();
-    }
-
-    private void deleteCourse(Long id) {
-         dsl.deleteFrom(COURSE)
-                .where(COURSE.ID.eq(id))
-                .execute();
+    public CourseService(CourseRepository courseRepository) {
+        this.courseRepository = courseRepository;
     }
 
     public ResponseEntity<Void> create(String name, Long teacherId) {
         try{
-            createCourse(
+            courseRepository.createCourse(
                     name,
                     teacherId
             );
@@ -79,14 +37,14 @@ public class CourseService {
 
     public ResponseEntity<CourseResponseDTO> update(Long id, String name, Long teacherId) {
         try{
-            var oldRecord = getById(id);
+            var oldRecord = courseRepository.getById(id);
 
             if(oldRecord == null){
                 LOGGER.error("Course not found. Id: {}", id);
                 return ResponseEntity.badRequest().build();
             }
 
-            updateCourse(id, name, teacherId);
+            courseRepository.updateCourse(id, name, teacherId);
 
             return getCourseById(id);
         } catch (Exception e) {
@@ -96,24 +54,24 @@ public class CourseService {
     }
 
     public ResponseEntity<CourseResponseDTO> getCourseById(Long id) {
-        CourseRecord record;
+        CourseRecord courseRecord;
 
         try{
-            record = getById(id);
+            courseRecord = courseRepository.getById(id);
         } catch (Exception e) {
             LOGGER.error("Error to find the Course. Error: {}", e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
 
-        if(record == null){
+        if(courseRecord == null){
             LOGGER.error("Course not found. Id: {}", id);
             return ResponseEntity.badRequest().build();
         }
 
         var response = new CourseResponseDTO(
-                record.getId(),
-                record.getName(),
-                record.getTeacherId()
+                courseRecord.getId(),
+                courseRecord.getName(),
+                courseRecord.getTeacherId()
         );
 
         return ResponseEntity.ok(response);
@@ -121,7 +79,7 @@ public class CourseService {
 
     public ResponseEntity<List<CourseResponseDTO>> list() {
         try{
-            var courseRecords = findAll();
+            var courseRecords = courseRepository.findAll();
 
             if(courseRecords.isEmpty()) return ResponseEntity.ok(Collections.emptyList());
 
@@ -142,12 +100,12 @@ public class CourseService {
 
     public ResponseEntity<Void> deleteById(Long id) {
         try{
-            if(getById(id) == null){
+            if(courseRepository.getById(id) == null){
                 LOGGER.error("Teacher not found. Id: {}", id);
                 return ResponseEntity.badRequest().build();
             }
 
-            deleteCourse(id);
+            courseRepository.deleteCourse(id);
 
             return ResponseEntity.ok().build();
         } catch (Exception e) {
@@ -159,7 +117,7 @@ public class CourseService {
     public ResponseEntity<List<CourseResponseDTO>> findCourseByStudentId(Long studentId) {
 
         try{
-            var coursesRecords = findCoursesByStudent(studentId);
+            var coursesRecords = courseRepository.findCoursesByStudent(studentId);
 
             if(coursesRecords.isEmpty()) return ResponseEntity.ok(Collections.emptyList());
 

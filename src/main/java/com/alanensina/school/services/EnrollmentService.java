@@ -1,53 +1,36 @@
 package com.alanensina.school.services;
 
-import org.jooq.DSLContext;
+import com.alanensina.school.repositories.EnrollmentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import static com.alanensina.school.jooq.generated.Tables.*;
-
 @Service
 public class EnrollmentService {
 
-    private final DSLContext dsl;
     private final CourseService courseService;
     private final StudentService studentService;
+    private final EnrollmentRepository enrollmentRepository;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(EnrollmentService.class);
 
-    public EnrollmentService(DSLContext dsl, CourseService courseService, StudentService studentService) {
-        this.dsl = dsl;
+    public EnrollmentService(CourseService courseService, StudentService studentService, EnrollmentRepository enrollmentRepository) {
         this.courseService = courseService;
         this.studentService = studentService;
-    }
-
-    private void enrollStudent(Long courseId, Long studentId) {
-        dsl.insertInto(ENROLLMENT)
-                .set(ENROLLMENT.COURSE_ID, courseId)
-                .set(ENROLLMENT.STUDENT_ID, studentId)
-                .onDuplicateKeyIgnore()
-                .execute();
-    }
-
-    private void unenrollStudent(Long courseId, Long studentId) {
-        dsl.deleteFrom(ENROLLMENT)
-                .where(ENROLLMENT.COURSE_ID.eq(courseId)
-                        .and(ENROLLMENT.STUDENT_ID.eq(studentId)))
-                .execute();
+        this.enrollmentRepository = enrollmentRepository;
     }
 
     public ResponseEntity<Void> enroll(Long courseId, Long studentId, boolean isEnroll) {
         try{
-            var courseRecord = courseService.getById(courseId);
+            var courseRecord = courseService.getCourseById(courseId);
 
             if(courseRecord == null){
                 LOGGER.error("Course not found. Id: {}", courseId);
                 return ResponseEntity.badRequest().build();
             }
 
-            var studentRecord = studentService.getById(courseId);
+            var studentRecord = studentService.getStudentById(studentId);
 
             if(studentRecord == null){
                 LOGGER.error("Student not found. Id: {}", studentId);
@@ -55,9 +38,9 @@ public class EnrollmentService {
             }
 
             if(isEnroll){
-                enrollStudent(courseId, studentId);
+                enrollmentRepository.enrollStudent(courseId, studentId);
             }else{
-                unenrollStudent(courseId, studentId);
+                enrollmentRepository.unEnrollStudent(courseId, studentId);
             }
 
             return ResponseEntity.ok().build();
